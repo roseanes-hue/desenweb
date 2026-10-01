@@ -1,6 +1,6 @@
 # 🎮 Kit Pokémon em Python — Pokédex, Calculadora de Tipos, Montador de Times e Gerenciador Pessoal
 
-> **Projeto Acadêmico:** Aplicação interativa em **Python 3.10+** com interface **Streamlit**, integrada à **PokéAPI** para busca de dados de Pokémon, cálculo de efetividade de tipos, montagem automática de times com **Algoritmo Guloso** e sistema de autenticação com gerenciamento de time pessoal persistido em **SQLite**.
+> **Projeto Acadêmico:** Aplicação interativa em **Python 3.10+** com interface **Streamlit**, integrada à **PokéAPI** para busca de dados de Pokémon, cálculo de efetividade de tipos, montagem automática de times com **Algoritmo Guloso** e sistema de autenticação com **verificação de e-mail (2FA)** e gerenciamento de time pessoal persistido em **SQLite**.
 
 🔗 **Repositório:** [https://github.com/roseanes-hue/desenweb.git](https://github.com/roseanes-hue/desenweb.git)
 
@@ -10,7 +10,7 @@
 
 Este projeto consiste em um **Kit Pokémon** desenvolvido para demonstrar a integração entre uma interface web interativa em **Python (Streamlit)** e a API pública **PokéAPI** (`pokeapi.co`).
 
-A aplicação conta com **cinco módulos principais**: uma **Pokédex** para busca individual de Pokémon com exibição de *sprites* e estatísticas, uma **Calculadora de Tipos** para cálculo de efetividade entre os 18 tipos, um **Montador de Times** que utiliza um algoritmo guloso para recomendar equipes otimizadas, um **Avaliador de Times** para análise de cobertura e sinergia, e um sistema de **Autenticação & Gerenciamento de Time Pessoal** com banco de dados SQLite local.
+A aplicação conta com **cinco módulos principais**: uma **Pokédex** para busca individual de Pokémon com exibição de *sprites* e estatísticas, uma **Calculadora de Tipos** para cálculo de efetividade entre os 18 tipos, um **Montador de Times** que utiliza um algoritmo guloso para recomendar equipes otimizadas, um **Avaliador de Times** para análise de cobertura e sinergia, e um sistema de **Autenticação & Gerenciamento de Time Pessoal** com **verificação de e-mail em duas etapas (2FA)** e banco de dados SQLite local.
 
 ---
 
@@ -20,8 +20,8 @@ A aplicação conta com **cinco módulos principais**: uma **Pokédex** para bus
 - ⚔️ **Calculadora de Tipos:** Seleção interativa de tipos atacantes e defensores com cálculo instantâneo de multiplicadores ($0\times$, $0,25\times$, $0,5\times$, $1\times$, $2\times$, $4\times$).
 - 🧠 **Montador de Times Automático:** Algoritmo guloso que monta equipes com até 6 membros, suportando posições travadas pelo usuário e filtro por tipo.
 - 📊 **Avaliador de Times:** Análise de sinergia defensiva, cobertura ofensiva contra todos os 18 tipos e índice de tanque ($\text{HP} + \text{Def} + \text{SpDef}$).
-- 🔐 **Autenticação "PC do Treinador":** Tela de login/cadastro com abas, senhas criptografadas (SHA-256), sessão via `st.session_state`.
-- 🧑‍💻 **Meu Time Pokémon:** Área exclusiva para usuários logados gerenciarem time pessoal de até 6 Pokémon com sprites oficiais da PokéAPI, adição/remoção individual e limpeza total.
+- 🔐 **Autenticação "PC do Treinador" com 2FA:** Tela de login/cadastro com abas, senhas criptografadas (SHA-256), **verificação de e-mail obrigatória via código de 6 dígitos**, sessão via `st.session_state`.
+- 🧑‍💻 **Meu Time Pokémon:** Área exclusiva para usuários verificados gerenciarem time pessoal de até 6 Pokémon com sprites oficiais da PokéAPI, adição/remoção individual e limpeza total.
 
 ---
 
@@ -41,6 +41,8 @@ A aplicação conta com **cinco módulos principais**: uma **Pokédex** para bus
 - **Algoritmo Guloso** — Estratégia de otimização para montagem automática de times Pokémon.
 - **SQLite (nativo)** — Banco de dados local para usuários e times pessoais (`pokemon_app.db`).
 - **hashlib (nativo)** — Criptografia SHA-256 de senhas antes de armazenar.
+- **smtplib + email.mime (nativo)** — Envio de e-mails de verificação via SMTP.
+- **secrets (nativo)** — Geração segura de códigos de verificação de 6 dígitos.
 
 ---
 
@@ -55,7 +57,8 @@ desenweb/
 │   │   ├── type_chart.py           # Tabela de efetividade entre tipos
 │   │   ├── evaluator.py            # Avaliador estratégico (cobertura, sinergia)
 │   │   ├── team_builder.py         # Montador de times (Algoritmo Guloso)
-│   │   └── database.py             # SQLite: users, teams, auth, CRUD
+│   │   ├── database.py             # SQLite: users, teams, auth, CRUD, 2FA
+│   │   └── email_service.py        # Envio de e-mail de verificação via SMTP
 │   │
 │   ├── data/
 │   │   ├── cache/                  # Cache local de Pokémon (auto-gerado)
@@ -71,18 +74,34 @@ desenweb/
 │   ├── app_cli.py                  # Ponto de entrada CLI (terminal)
 │   ├── app_web.py                  # Ponto de entrada Web (Streamlit)
 │   ├── requirements.txt            # Dependências (requests, streamlit)
+│   ├── .env                        # Variáveis de ambiente (SMTP) — não versionado
+│   ├── .env.example                # Template de variáveis de ambiente
 │   └── pokemon_app.db              # Banco SQLite (criado em runtime)
 │
-├── api/                            # API Backend - Projeto Separado (FastAPI + SQLite)
-├── frontend/                       # Frontend React - Projeto Separado (Vite + Tailwind)
 ├── doc/                            # Documentação técnica
+│   ├── arquitetura_kit_pokemon.md
 │   ├── escopo_projeto_kit_pokemon.md
-│   ├── plano_kit_pokemon.md
-│   ├── plano_sistema_leads.md      # Doc. do projeto separado (Sistema de Leads)
-│   └── plano_landingpage_nodejs.md # Doc. do projeto separado (Landing Page Node.js)
+│   └── requisitos_usuarios.md
 │
 └── README.md                       # Este arquivo
 ```
+
+---
+
+## ⚙️ Configuração de E-mail (2FA)
+
+O sistema exige verificação de e-mail no cadastro. Configure as variáveis no arquivo `.env`:
+
+```env
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_EMAIL=seu_email@gmail.com
+SMTP_PASSWORD=sua_senha_de_app_16_chars
+```
+
+> **Para Gmail:** Use "Senha de App" (não a senha normal). Ative a verificação em 2 etapas e gere em: https://myaccount.google.com/apppasswords
+
+Copie `.env.example` para `.env` e preencha com suas credenciais.
 
 ---
 
@@ -109,7 +128,20 @@ python -m venv .venv
 
 ---
 
-### 🚀 **3. Executar em Modo Web (Recomendado)**
+### **3. Configurar Variáveis de Ambiente**
+
+```bash
+# No Windows:
+copy .env.example .env
+# No Linux/Mac:
+# cp .env.example .env
+```
+
+Edite `.env` com suas credenciais SMTP reais.
+
+---
+
+### 🚀 **4. Executar em Modo Web (Recomendado)**
 
 ```bash
 # No Windows:
@@ -123,7 +155,7 @@ python -m venv .venv
 
 ---
 
-### 💻 **4. Executar em Modo CLI (Terminal)**
+### 💻 **5. Executar em Modo CLI (Terminal)**
 
 ```bash
 # No Windows:
@@ -163,13 +195,14 @@ python -m venv .venv
 |          ▼                      ▼                      ▼              |
 |      [ PokéAPI ]         [ type_matrix ]          [ evaluator ]       |
 |                                                                       |
-|   database.py (SQLite)                                                |
-|   ├─ users (id, username, email, password_hash)                      |
+|   database.py (SQLite)           email_service.py (SMTP)             |
+|   ├─ users (id, username, email, password_hash, is_verified,        |
+|   │       verification_code)                                        |
 |   └─ teams (id, user_id, pokemon_name, sprite_url, stats, created)   |
 +-----------------------------------------------------------------------+
 ```
 
-> **Regra de Ouro:** A camada de Frontend atua apenas na captura de entradas e renderização visual. Toda a lógica de requisições HTTP, cálculo de multiplicadores, algoritmo guloso e persistência reside no Backend (`core/`).
+> **Regra de Ouro:** A camada de Frontend atua apenas na captura de entradas e renderização visual. Toda a lógica de requisições HTTP, cálculo de multiplicadores, algoritmo guloso, autenticação 2FA e persistência reside no Backend (`core/`).
 
 ---
 
@@ -177,7 +210,7 @@ python -m venv .venv
 
 - **Tratamento de Exceções:** Erros de entrada do usuário (nomes incorretos de Pokémon) são tratados com mensagens informativas na interface.
 - **Tempo de Execução:** O algoritmo guloso entrega a recomendação completa do time em tempo $< 2$ segundos.
-- **Segurança:** Senhas armazenadas apenas como hash SHA-256 via `hashlib` nativo, nunca em texto plano.
+- **Segurança:** Senhas armazenadas apenas como hash SHA-256 via `hashlib` nativo, nunca em texto plano. Verificação de e-mail obrigatória antes do primeiro login.
 - **Sessão:** Estado de autenticação gerenciado via `st.session_state.user` com logout disponível.
 - **Crédito de Autoria:** Rodapé da aplicação e cabeçalho da documentação atribuem a criação do projeto a **Roseane Vilela de Sousa**.
 
