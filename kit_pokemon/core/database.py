@@ -1,6 +1,7 @@
 import sqlite3
 import hashlib
 import os
+import secrets
 from datetime import datetime
 from pathlib import Path
 
@@ -22,9 +23,18 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            is_verified INTEGER DEFAULT 0,
+            verification_code TEXT
         )
     """)
+
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if "is_verified" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
+    if "verification_code" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN verification_code TEXT")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teams (
@@ -46,23 +56,29 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def register_user(username: str, email: str, password: str) -> tuple[bool, str]:
+def _generate_verification_code() -> str:
+    return str(secrets.randbelow(1000000)).zfill(6)
+
+
+def register_user(username: str, email: str, password: str) -> tuple[bool, str, str | None]:
     conn = get_connection()
     cursor = conn.cursor()
 
+    verification_code = _generate_verification_code()
+
     try:
         cursor.execute(
-            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-            (username, email, hash_password(password))
+            "INSERT INTO users (username, email, password_hash, verification_code, is_verified) VALUES (?, ?, ?, ?, 0)",
+            (username, email, hash_password(password), verification_code)
         )
         conn.commit()
-        return True, "Treinador cadastrado com sucesso!"
+        return True, "Cadastro realizado! Verifique seu e-mail.", verification_code
     except sqlite3.IntegrityError as e:
         if "username" in str(e):
-            return False, "Nome de usuário já existe."
+            return False, "Nome de usuário já existe.", None
         elif "email" in str(e):
-            return False, "Email já cadastrado."
-        return False, "Erro ao cadastrar."
+            return False, "Email já cadastrado.", None
+        return False, "Erro ao cadastrar.", None
     finally:
         conn.close()
 
@@ -72,15 +88,76 @@ def authenticate_user(username: str, password: str) -> tuple[bool, str, dict | N
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, username, email, password_hash FROM users WHERE username = ?",
+        "SELECT id, username, email, password_hash, is_verified FROM users WHERE username = ?",
         (username,)
     )
     user = cursor.fetchone()
     conn.close()
 
     if user and user["password_hash"] == hash_password(password):
+        if not user["is_verified"]:
+            return False, "E-mail não verificado. Verifique sua caixa de entrada.", None
         return True, "Login realizado com sucesso!", dict(user)
     return False, "Usuário ou senha incorretos.", None
+
+
+def verify_email_code(username: str, code: str) -> tuple[bool, str]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT verification_code, is_verified FROM users WHERE username = ?",
+        (username,)
+    )
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return False, "Usuário não encontrado."
+
+    if user["is_verified"]:
+        conn.close()
+        return True, "E-mail já verificado."
+
+    if user["verification_code"] != code:
+        conn.close()
+        return False, "Código inválido."
+
+    cursor.execute(
+        "UPDATE users SET is_verified = 1, verification_code = NULL WHERE username = ?",
+        (username,)
+    )
+    conn.commit()
+    conn.close()
+    return True, "E-mail verificado com sucesso!"
+
+
+def resend_verification_code(username: str) -> tuple[bool, str, str | None]:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id, is_verified FROM users WHERE username = ?",
+        (username,)
+    )
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return False, "Usuário não encontrado.", None
+
+    if user["is_verified"]:
+        conn.close()
+        return True, "E-mail já verificado.", None
+
+    new_code = _generate_verification_code()
+    cursor.execute(
+        "UPDATE users SET verification_code = ? WHERE username = ?",
+        (new_code, username)
+    )
+    conn.commit()
+    conn.close()
+    return True, "Novo código enviado!", new_code
 
 
 def save_team_pokemon(user_id: int, pokemon_name: str, sprite_url: str, stats: dict) -> bool:
