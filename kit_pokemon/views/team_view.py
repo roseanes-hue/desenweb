@@ -1,20 +1,20 @@
 import streamlit as st
-import requests
 from core import get_user_team, save_team_pokemon, remove_team_pokemon, clear_user_team
 from core import render_stat_row, inject_stat_css
+from core.pokeapi_client import get_pokemon
 
 
-POKEAPI_BASE = "https://pokeapi.co/api/v2"
-
-
-def fetch_pokemon_data(pokemon_name: str) -> dict | None:
-    try:
-        response = requests.get(f"{POKEAPI_BASE}/pokemon/{pokemon_name.lower()}", timeout=10)
-        if response.status_code == 200:
-            return response.json()
-    except Exception:
-        pass
-    return None
+def _convert_to_preview_format(pokemon: dict) -> dict:
+    return {
+        "name": pokemon["name"],
+        "id": pokemon["id"],
+        "sprites": {
+            "front_default": pokemon["sprite_default"],
+            "front_shiny": pokemon["sprite_shiny"],
+        },
+        "types": [{"type": {"name": t}} for t in pokemon["types"]],
+        "stats": [{"stat": {"name": k}, "base_stat": v} for k, v in pokemon["stats"].items()],
+    }
 
 
 def render():
@@ -60,9 +60,9 @@ def render():
         search_btn = st.button("Buscar", type="primary")
 
     if search_btn and pokemon_input:
-        data = fetch_pokemon_data(pokemon_input)
-        if data:
-            st.session_state["team_preview"] = data
+        pokemon = get_pokemon(pokemon_input)
+        if pokemon:
+            st.session_state["team_preview"] = _convert_to_preview_format(pokemon)
             st.rerun()
         else:
             st.error("Pokémon não encontrado.")

@@ -9,17 +9,6 @@ def get_stat_color(value: int) -> str:
         return "#2E7D32"
 
 
-def get_stat_color_name(value: int) -> str:
-    if value < 60:
-        return "red"
-    elif value < 90:
-        return "orange"
-    elif value < 120:
-        return "green"
-    else:
-        return "darkgreen"
-
-
 def calc_hp_min_max(base: int) -> tuple[int, int]:
     min_val = (2 * base) + 110
     max_val = (2 * base) + 204
@@ -55,10 +44,6 @@ def render_stat_row(base: int, label: str, is_hp: bool = False, bar_width: int =
         </div>
     </div>
     '''
-
-
-def render_stat_bar_html(base: int, label: str = "", max_val: int = 180, is_hp: bool = False, width: int = 180) -> str:
-    return render_stat_row(base, label, is_hp, width)
 
 
 def inject_stat_css():

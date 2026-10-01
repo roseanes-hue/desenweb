@@ -1,11 +1,7 @@
 import streamlit as st
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(__file__))
-
 from core.evaluator import evaluate_team
 from core.type_chart import ALL_TYPES
+from core.pokeapi_client import get_pokemon
 
 
 def render():
@@ -16,7 +12,7 @@ def render():
     )
 
     st.markdown("---")
-    st.subheader("� Pokémon do Time")
+    st.subheader("🧩 Pokémon do Time")
 
     cols = st.columns(6)
     pokemon_names = []
@@ -26,10 +22,9 @@ def render():
             pokemon_names.append(name.strip())
 
     st.markdown("---")
-    evaluate_btn = st.button("� avaliar Time", type="primary", use_container_width=True)
+    evaluate_btn = st.button("📊 Avaliar Time", type="primary", use_container_width=True)
 
     if evaluate_btn:
-        # Filtrar nomes vazios
         names_filtered = [n for n in pokemon_names if n.strip()]
         if len(names_filtered) < 6:
             st.error(f"❏ Por favor, informe exatamente 6 Pokémon. Atualmente: {len(names_filtered)}")
@@ -106,8 +101,3 @@ def render():
 
                     st.markdown("---")
                     st.caption("Criado por Roseane Vilela de Sousa — Kit Pokémon em Python")
-
-
-def get_pokemon(name_or_id):
-    from core.pokeapi_client import get_pokemon as _get_pokemon
-    return _get_pokemon(name_or_id)
